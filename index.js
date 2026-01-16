@@ -82,6 +82,33 @@ async function run() {
             }
         });
 
+        // GET /donations - flexible fetching
+        // Optional query params:
+        //   email -> fetch donations by this donor
+        //   limit -> limit number of results
+        //   status -> filter by donationStatus
+        app.get('/donations', async (req, res) => {
+            try {
+                const { email, limit, status } = req.query;
+
+                // Build dynamic query
+                const query = {};
+                if (email) query.requesterEmail = email;
+                if (status) query.donationStatus = status;
+
+                const donations = await donationsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 }) // most recent first
+                    .limit(limit ? parseInt(limit) : 0) // 0 = no limit
+                    .toArray();
+
+                res.status(200).json(donations);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+
         // POST /donations - add a new donation request
         app.post('/donations', async (req, res) => {
             try {
