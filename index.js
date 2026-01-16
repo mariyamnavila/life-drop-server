@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 
 require('dotenv').config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -108,6 +108,27 @@ async function run() {
             }
         });
 
+        // GET /donations/:donationId - fetch single donation by ID
+        app.get('/donations/:donationId', async (req, res) => {
+            try {
+                const { donationId } = req.params;
+
+                // Validate ObjectId
+                if (!ObjectId.isValid(donationId)) {
+                    return res.status(400).json({ success: false, message: "Invalid donation ID" });
+                }
+
+                const donation = await donationsCollection.findOne({ _id: new ObjectId(donationId) });
+
+                if (!donation) {
+                    return res.status(404).json({ success: false, message: "Donation not found" });
+                }
+
+                res.status(200).json(donation);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         // POST /donations - add a new donation request
         app.post('/donations', async (req, res) => {
