@@ -143,6 +143,43 @@ async function run() {
             }
         });
 
+        // PATCH /donations/:donationId - flexible update
+        app.patch('/donations/:donationId', async (req, res) => {
+            try {
+                const { donationId } = req.params;
+
+                if (!ObjectId.isValid(donationId)) {
+                    return res.status(400).json({ success: false, message: "Invalid donation ID" });
+                }
+
+                // Only include fields that are provided in body
+                const updateFields = {};
+                const allowedFields = ["donationStatus", "donorName", "donorEmail"];
+                allowedFields.forEach(field => {
+                    if (req.body[field]) updateFields[field] = req.body[field];
+                });
+
+                if (Object.keys(updateFields).length === 0) {
+                    return res.status(400).json({ success: false, message: "No valid fields to update" });
+                }
+
+                const result = await donationsCollection.updateOne(
+                    { _id: new ObjectId(donationId) },
+                    { $set: updateFields }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Donation not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Donation updated successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
