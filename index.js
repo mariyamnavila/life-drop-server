@@ -210,6 +210,40 @@ async function run() {
             }
         });
 
+        app.put('/donations/:donationId', async (req, res) => {
+            try {
+                const { donationId } = req.params;
+                const data = req.body;
+
+                if (!ObjectId.isValid(donationId)) {
+                    return res.status(400).json({ success: false, message: "Invalid donation ID" });
+                }
+
+                if (!data || Object.keys(data).length === 0) {
+                    return res.status(400).json({ success: false, message: "No data provided" });
+                }
+
+                // Protect _id
+                delete data._id;
+
+                const result = await donationsCollection.updateOne(
+                    { _id: new ObjectId(donationId) },
+                    { $set: data }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Donation not found" });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "Donation updated successfully"
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
