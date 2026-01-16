@@ -44,6 +44,25 @@ async function run() {
             }
         });
 
+        // GET /users/:email/role - get role and status only
+        app.get('/users/:email/role', async (req, res) => {
+            try {
+                const email = req.params.email;
+
+                const user = await usersCollection.findOne(
+                    { email: email },
+                    { projection: { role: 1, status: 1, _id: 0 } } // only role & status
+                );
+
+                if (!user) {
+                    return res.status(404).json({ success: false, message: 'User not found' });
+                }
+
+                res.status(200).json(user);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         app.post('/users', async (req, res) => {
             try {
