@@ -143,42 +143,72 @@ async function run() {
             }
         });
 
-        // PATCH /donations/:donationId - flexible update
+        // PATCH /donations/:donationId - update status and donor info
         app.patch('/donations/:donationId', async (req, res) => {
             try {
                 const { donationId } = req.params;
 
+                // Validate ObjectId
                 if (!ObjectId.isValid(donationId)) {
                     return res.status(400).json({ success: false, message: "Invalid donation ID" });
                 }
 
-                // Only include fields that are provided in body
-                const updateFields = {};
-                const allowedFields = ["donationStatus", "donorName", "donorEmail"];
-                allowedFields.forEach(field => {
-                    if (req.body[field]) updateFields[field] = req.body[field];
-                });
+                const { donationStatus, donorName, donorEmail } = req.body;
 
-                if (Object.keys(updateFields).length === 0) {
-                    return res.status(400).json({ success: false, message: "No valid fields to update" });
+                if (!donationStatus || !donorName || !donorEmail) {
+                    return res.status(400).json({ success: false, message: "donationStatus, donorName, and donorEmail are required" });
                 }
 
+                // Update the donation
                 const result = await donationsCollection.updateOne(
                     { _id: new ObjectId(donationId) },
-                    { $set: updateFields }
+                    {
+                        $set: {
+                            donationStatus,
+                            donorName,
+                            donorEmail
+                        }
+                    }
                 );
 
                 if (result.matchedCount === 0) {
                     return res.status(404).json({ success: false, message: "Donation not found" });
                 }
 
-                res.status(200).json({ success: true, message: "Donation updated successfully" });
+                res.status(200).json(result);
             } catch (error) {
                 res.status(500).json({ success: false, message: error.message });
             }
         });
 
+        // PATCH /donations/:donationId/status - update only donationStatus
+        app.patch('/donations/:donationId/status', async (req, res) => {
+            try {
+                const { donationId } = req.params;
+                const { donationStatus } = req.body;
 
+                if (!ObjectId.isValid(donationId)) {
+                    return res.status(400).json({ success: false, message: "Invalid donation ID" });
+                }
+
+                if (!donationStatus) {
+                    return res.status(400).json({ success: false, message: "donationStatus is required" });
+                }
+
+                const result = await donationsCollection.updateOne(
+                    { _id: new ObjectId(donationId) },
+                    { $set: { donationStatus } }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Donation not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Donation status updated successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
