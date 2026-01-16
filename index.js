@@ -34,6 +34,17 @@ async function run() {
         const db = client.db('life-drop')
         const usersCollection = db.collection('users');
 
+        // MongoDB collections and routes setup
+        app.get('/users', async (req, res) => {
+            try {
+                const users = await usersCollection.find({}).toArray();
+                res.status(200).json({ success: true, users });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+
         app.post('/users', async (req, res) => {
             try {
                 const email = req.body.email;
