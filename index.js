@@ -127,6 +127,23 @@ async function run() {
             }
         });
 
+        // GET /donations/search?blood_group=A+&district=Dhaka&upazila=Savar
+        app.get("/donations/search", async (req, res) => {
+            try {
+                const { blood_group, district, upazila } = req.query;
+                const query = { donationStatus: "pending" }; // only pending donations are searchable
+
+                if (blood_group) query.bloodGroup = blood_group;
+                if (district) query.recipientDistrict = district;
+                if (upazila) query.recipientUpazila = upazila;
+
+                const donations = await donationsCollection.find(query).sort({ createdAt: -1 }).toArray();
+
+                res.status(200).json(donations);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         // GET /donations/:donationId - fetch single donation by ID
         app.get('/donations/:donationId', async (req, res) => {
