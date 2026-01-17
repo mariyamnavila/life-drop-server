@@ -82,31 +82,51 @@ async function run() {
             }
         });
 
-        // GET /donations - flexible fetching
-        // Optional query params:
-        //   email -> fetch donations by this donor
-        //   limit -> limit number of results
-        //   status -> filter by donationStatus
+        // GET /donations - paginated & filtered
         app.get('/donations', async (req, res) => {
             try {
-                const { email, limit, status } = req.query;
+                const {
+                    email,
+                    status,
+                    page = 0,
+                    limit = 10
+                } = req.query;
 
-                // Build dynamic query
+                const pageNumber = parseInt(page);
+                const pageSize = parseInt(limit);
+                const skip = pageNumber * pageSize;
+
+                // Dynamic query
                 const query = {};
                 if (email) query.requesterEmail = email;
                 if (status) query.donationStatus = status;
 
+                // Get total count
+                const totalCount = await donationsCollection.countDocuments(query);
+
+                // Get paginated data
                 const donations = await donationsCollection
                     .find(query)
-                    .sort({ createdAt: -1 }) // most recent first
-                    .limit(limit ? parseInt(limit) : 0) // 0 = no limit
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(pageSize)
                     .toArray();
 
-                res.status(200).json(donations);
+                res.status(200).json({
+                    donations,
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / pageSize),
+                    currentPage: pageNumber,
+                });
+
             } catch (error) {
-                res.status(500).json({ success: false, message: error.message });
+                res.status(500).json({
+                    success: false,
+                    message: error.message,
+                });
             }
         });
+
 
         // GET /donations/:donationId - fetch single donation by ID
         app.get('/donations/:donationId', async (req, res) => {
