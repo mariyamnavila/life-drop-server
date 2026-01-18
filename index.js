@@ -99,6 +99,35 @@ async function run() {
             }
         });
 
+        // PUT /users/:email - update user by email
+        app.put('/users/:email', async (req, res) => {
+            try {
+                const { email } = req.params;
+                const data = req.body;
+
+                if (!data || Object.keys(data).length === 0) {
+                    return res.status(400).json({ success: false, message: "No data provided to update" });
+                }
+
+                // Protect _id from being overwritten
+                delete data._id;
+
+                const result = await usersCollection.updateOne(
+                    { email: email },
+                    { $set: data }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+
+                res.status(200).json({ success: true, message: "User updated successfully" });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+
         // GET /donations - paginated & filtered
         app.get('/donations', async (req, res) => {
             try {
