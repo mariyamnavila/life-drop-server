@@ -34,6 +34,7 @@ async function run() {
         const db = client.db('life-drop')
         const usersCollection = db.collection('users');
         const donationsCollection = db.collection('donations');
+        const fundsCollection = db.collection('funds');
 
         // MongoDB collections and routes setup
         app.get('/users', async (req, res) => {
@@ -326,6 +327,28 @@ async function run() {
                 res.status(500).json({ success: false, message: error.message });
             }
         });
+
+        // GET /admin/dashboard-stats
+        app.get("/admin/dashboard-stats", async (req, res) => {
+            try {
+                // Count all users (donors, volunteers, admins)
+                const totalUsers = await usersCollection.countDocuments();
+
+                // Total funding (sum of all donations to funding collection)
+                const totalFundsDoc = await fundsCollection.aggregate([
+                    { $group: { _id: null, total: { $sum: "$amount" } } }
+                ]).toArray();
+                const totalFunds = totalFundsDoc[0]?.total || 0;
+
+                // Total blood donation requests
+                const totalDonations = await donationsCollection.countDocuments();
+
+                res.json({ totalUsers, totalFunds, totalDonations });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
