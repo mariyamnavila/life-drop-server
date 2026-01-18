@@ -1,6 +1,7 @@
 // index.js
 const express = require('express');
 const cors = require('cors');
+const Stripe = require("stripe");
 
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -12,8 +13,7 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// life-drop
-// sIlMPqWvoMl3u7hD
+const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster033.bpxhzqh.mongodb.net/?appName=Cluster033`;
 
@@ -126,30 +126,6 @@ async function run() {
             }
         });
 
-        // PATCH /users/:id/status
-        app.patch("/users/:id/status", async (req, res) => {
-            const { status } = req.body;
-
-            const result = await usersCollection.updateOne(
-                { _id: new ObjectId(req.params.id) },
-                { $set: { status } }
-            );
-
-            res.json(result);
-        });
-
-        // PATCH /users/:id/role
-        app.patch("/users/:id/role", async (req, res) => {
-            const { role } = req.body;
-
-            const result = await usersCollection.updateOne(
-                { _id: new ObjectId(req.params.id) },
-                { $set: { role } }
-            );
-
-            res.json(result);
-        });
-
         // PUT /users/:email - update user by email
         app.put('/users/:email', async (req, res) => {
             try {
@@ -178,6 +154,29 @@ async function run() {
             }
         });
 
+        // PATCH /users/:id/status
+        app.patch("/users/:id/status", async (req, res) => {
+            const { status } = req.body;
+
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { status } }
+            );
+
+            res.json(result);
+        });
+
+        // PATCH /users/:id/role
+        app.patch("/users/:id/role", async (req, res) => {
+            const { role } = req.body;
+
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { role } }
+            );
+
+            res.json(result);
+        });
 
         // GET /donations - paginated & filtered
         app.get('/donations', async (req, res) => {
@@ -396,6 +395,32 @@ async function run() {
                 res.json({ totalUsers, totalFunds, totalDonations });
             } catch (err) {
                 res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
+        // POST /fundings/create-payment-intent
+        app.post("/create-payment-intent", verifyUser, async (req, res) => {
+            const { amount } = req.body; // USD
+            try {
+                if (!amount || amount <= 0) {
+                    return res.status(400).json({ message: "Amount is required" });
+                }
+
+                const amountInCents = Math.round(amount * 100);
+
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount: amountInCents,
+                    currency: "usd",
+                    payment_method_types: ["card"],
+                });
+
+                res.status(200).json({ clientSecret: paymentIntent.client_secret });
+            } catch (error) {
+                console.error("Stripe error:", error);
+                res.status(500).json({
+                    message: "Failed to create payment intent",
+                    error: error.message,
+                });
             }
         });
 
