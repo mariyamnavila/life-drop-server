@@ -138,6 +138,17 @@ async function run() {
             res.json(result);
         });
 
+        // PATCH /users/:id/role
+        app.patch("/users/:id/role", async (req, res) => {
+            const { role } = req.body;
+
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { role } }
+            );
+
+            res.json(result);
+        });
 
         // PUT /users/:email - update user by email
         app.put('/users/:email', async (req, res) => {
