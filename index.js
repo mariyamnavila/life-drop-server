@@ -34,7 +34,7 @@ async function run() {
         const db = client.db('life-drop')
         const usersCollection = db.collection('users');
         const donationsCollection = db.collection('donations');
-        const fundsCollection = db.collection('funds');
+        const fundingsCollection = db.collection('funds');
 
         // MongoDB collections and routes setup
         // GET /users
@@ -384,7 +384,7 @@ async function run() {
                 const totalUsers = await usersCollection.countDocuments();
 
                 // Total funding (sum of all donations to funding collection)
-                const totalFundsDoc = await fundsCollection.aggregate([
+                const totalFundsDoc = await fundingsCollection.aggregate([
                     { $group: { _id: null, total: { $sum: "$amount" } } }
                 ]).toArray();
                 const totalFunds = totalFundsDoc[0]?.total || 0;
@@ -398,9 +398,42 @@ async function run() {
             }
         });
 
+        app.get("/fundings", async (req, res) => {
+            const page = parseInt(req.query.page) || 0;
+            const limit = parseInt(req.query.limit) || 10;
+
+            try {
+                const totalCount = await fundingsCollection.countDocuments();
+                const fundings = await fundingsCollection
+                    .find()
+                    .sort({ date: -1 })
+                    .skip(page * limit)
+                    .limit(limit)
+                    .toArray();
+
+                res.status(200).json({ totalCount, fundings });
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
+        app.post("/fundings", async (req, res) => {
+            try {
+                const fundingData = req.body; // { userName, userEmail, amount, transactionId, date }
+
+                const result = await fundingsCollection.insertOne(fundingData);
+
+                res.status(201).json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         // POST /fundings/create-payment-intent
-        app.post("/create-payment-intent", verifyUser, async (req, res) => {
+        // 1️ Create Stripe Payment Intent
+        app.post("/fundings/create-payment-intent", async (req, res) => {
             const { amount } = req.body; // USD
+
             try {
                 if (!amount || amount <= 0) {
                     return res.status(400).json({ message: "Amount is required" });
@@ -417,10 +450,7 @@ async function run() {
                 res.status(200).json({ clientSecret: paymentIntent.client_secret });
             } catch (error) {
                 console.error("Stripe error:", error);
-                res.status(500).json({
-                    message: "Failed to create payment intent",
-                    error: error.message,
-                });
+                res.status(500).json({ message: "Failed to create payment intent", error: error.message });
             }
         });
 
