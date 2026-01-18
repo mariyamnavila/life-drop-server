@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const Stripe = require("stripe");
+const admin = require("firebase-admin");
 
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -12,6 +13,12 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+
+const serviceAccount = require("./firebase-admin-key.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
 
 const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
 
@@ -36,9 +43,68 @@ async function run() {
         const donationsCollection = db.collection('donations');
         const fundingsCollection = db.collection('funds');
 
+        // custom middleware
+        const verifyFBToken = async (req, res, next) => {
+            const authHeader = req.headers.authorization
+            // If not, return res.status(401).json({ message: "Unauthorized" });
+            if (!authHeader || !authHeader.startsWith("Bearer ")) {
+                return res.status(401).json({ message: "Unauthorized access" });
+            }
+            const token = authHeader.split(' ')[1];
+            if (!token) {
+                return res.status(401).json({ message: "Unauthorized access" });
+            }
+            // If verified, call next()
+
+            try {
+                const decoded = await admin.auth().verifyIdToken(token)
+                req.decoded = decoded
+                next();
+            } catch (error) {
+                return res.status(403).json({ message: "forbidden access" });
+            }
+        }
+
+        // Middleware to check if user is admin
+        const verifyAdmin = async (req, res, next) => {
+            try {
+                const email = req.decoded.email; // from verifyFBToken middleware
+
+                const user = await usersCollection.findOne({ email: email });
+
+                if (!user || user.role !== 'admin') {
+                    return res.status(403).json({ message: 'Access denied. Admin only.' });
+                }
+
+                req.user = user; // attach user to request
+                next();
+            } catch (error) {
+                res.status(500).json({ message: 'Server error', error: error.message });
+            }
+        };
+
+        const verifyAdminOrVolunteer = async (req, res, next) => {
+            try {
+                const email = req.decoded.email; // from verifyFBToken middleware
+
+                const user = await usersCollection.findOne({ email: email });
+
+                console.log(user.role);
+
+                if (!user || (user.role !== 'admin' && user.role !== 'volunteer')) {
+                    return res.status(403).json({ message: 'Access denied. Admin and Volunteers only.' });
+                }
+
+                req.user = user; // attach user to request
+                next();
+            } catch (error) {
+                res.status(500).json({ message: 'Server error', error: error.message });
+            }
+        };
+
         // MongoDB collections and routes setup
         // GET /users
-        app.get("/users", async (req, res) => {
+        app.get("/users", verifyFBToken, verifyAdmin, async (req, res) => {
             try {
                 const { status, page = 0, limit = 10 } = req.query;
 
@@ -73,7 +139,7 @@ async function run() {
 
 
         // GET /users/:email - fetch single user by email
-        app.get('/users/:email', async (req, res) => {
+        app.get('/users/:email', verifyFBToken, async (req, res) => {
             try {
                 const { email } = req.params;
 
@@ -155,7 +221,7 @@ async function run() {
         });
 
         // PATCH /users/:id/status
-        app.patch("/users/:id/status", async (req, res) => {
+        app.patch("/users/:id/status", verifyFBToken, async (req, res) => {
             const { status } = req.body;
 
             const result = await usersCollection.updateOne(
@@ -167,7 +233,7 @@ async function run() {
         });
 
         // PATCH /users/:id/role
-        app.patch("/users/:id/role", async (req, res) => {
+        app.patch("/users/:id/role", verifyFBToken, async (req, res) => {
             const { role } = req.body;
 
             const result = await usersCollection.updateOne(
@@ -242,7 +308,7 @@ async function run() {
         });
 
         // GET /donations/:donationId - fetch single donation by ID
-        app.get('/donations/:donationId', async (req, res) => {
+        app.get('/donations/:donationId', verifyFBToken, async (req, res) => {
             try {
                 const { donationId } = req.params;
 
@@ -277,7 +343,7 @@ async function run() {
         });
 
         // PATCH /donations/:donationId - update status and donor info
-        app.patch('/donations/:donationId', async (req, res) => {
+        app.patch('/donations/:donationId', verifyFBToken, async (req, res) => {
             try {
                 const { donationId } = req.params;
 
@@ -315,7 +381,7 @@ async function run() {
         });
 
         // PATCH /donations/:donationId/status - update only donationStatus
-        app.patch('/donations/:donationId/status', async (req, res) => {
+        app.patch('/donations/:donationId/status', verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
             try {
                 const { donationId } = req.params;
                 const { donationStatus } = req.body;
@@ -343,7 +409,7 @@ async function run() {
             }
         });
 
-        app.put('/donations/:donationId', async (req, res) => {
+        app.put('/donations/:donationId', verifyFBToken, async (req, res) => {
             try {
                 const { donationId } = req.params;
                 const data = req.body;
@@ -378,7 +444,7 @@ async function run() {
         });
 
         // GET /admin/dashboard-stats
-        app.get("/admin/dashboard-stats", async (req, res) => {
+        app.get("/admin/dashboard-stats", verifyFBToken, verifyAdmin, async (req, res) => {
             try {
                 // Count all users (donors, volunteers, admins)
                 const totalUsers = await usersCollection.countDocuments();
@@ -398,7 +464,7 @@ async function run() {
             }
         });
 
-        app.get("/fundings", async (req, res) => {
+        app.get("/fundings", verifyFBToken, async (req, res) => {
             const page = parseInt(req.query.page) || 0;
             const limit = parseInt(req.query.limit) || 10;
 
