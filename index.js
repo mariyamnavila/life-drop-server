@@ -45,6 +45,23 @@ async function run() {
             }
         });
 
+        // GET /users/:email - fetch single user by email
+        app.get('/users/:email', async (req, res) => {
+            try {
+                const { email } = req.params;
+
+                const user = await usersCollection.findOne({ email: email });
+
+                if (!user) {
+                    return res.status(404).json({ success: false, message: "User not found" });
+                }
+
+                res.status(200).json(user);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+
         // GET /users/:email/role - get role and status only
         app.get('/users/:email/role', async (req, res) => {
             try {
