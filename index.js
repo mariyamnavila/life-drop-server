@@ -37,14 +37,40 @@ async function run() {
         const fundsCollection = db.collection('funds');
 
         // MongoDB collections and routes setup
-        app.get('/users', async (req, res) => {
+        // GET /users
+        app.get("/users", async (req, res) => {
             try {
-                const users = await usersCollection.find({}).toArray();
-                res.status(200).json({ success: true, users });
-            } catch (error) {
-                res.status(500).json({ success: false, message: error.message });
+                const { status, page = 0, limit = 10 } = req.query;
+
+                const query = {};
+                if (status && status !== "all") {
+                    query.status = status;
+                }
+
+                const pageNumber = parseInt(page);
+                const pageSize = parseInt(limit);
+                const skip = pageNumber * pageSize;
+
+                const totalCount = await usersCollection.countDocuments(query);
+
+                const users = await usersCollection
+                    .find(query)
+                    .sort({ created_at: -1 })
+                    .skip(skip)
+                    .limit(pageSize)
+                    .toArray();
+
+                res.json({
+                    users,
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / pageSize),
+                    currentPage: pageNumber,
+                });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
             }
         });
+
 
         // GET /users/:email - fetch single user by email
         app.get('/users/:email', async (req, res) => {
