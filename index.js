@@ -245,7 +245,7 @@ async function run() {
         });
 
         // GET /donations - paginated & filtered
-        app.get('/donations', async (req, res) => {
+        app.get('/donations', verifyFBToken, async (req, res) => {
             try {
                 const {
                     email,
@@ -285,6 +285,44 @@ async function run() {
                 res.status(500).json({
                     success: false,
                     message: error.message,
+                });
+            }
+        });
+
+        // GET /donations/pending - get only pending donation requests (limited fields)
+        app.get('/donations/pending', async (req, res) => {
+            try {
+                const { page = 0, limit = 9  } = req.query;
+
+                const pageNumber = parseInt(page);
+                const pageSize = parseInt(limit);
+                const skip = pageNumber * pageSize;
+
+                // Fixed query: only pending donations
+                const query = { donationStatus: "pending" };
+
+                // Total count for pagination
+                const totalCount = await donationsCollection.countDocuments(query);
+
+                // Paginated data
+                const donations = await donationsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(pageSize)
+                    .toArray();
+
+                res.status(200).json({
+                    donations,
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / pageSize),
+                    currentPage: pageNumber
+                });
+
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message
                 });
             }
         });
@@ -444,7 +482,7 @@ async function run() {
         });
 
         // GET /admin/dashboard-stats
-        app.get("/admin/dashboard-stats", verifyFBToken, verifyAdmin, async (req, res) => {
+        app.get("/admin/dashboard-stats", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
             try {
                 // Count all users (donors, volunteers, admins)
                 const totalUsers = await usersCollection.countDocuments();
