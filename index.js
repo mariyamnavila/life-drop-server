@@ -14,7 +14,8 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-const serviceAccount = require("./firebase-admin-key.json");
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+const serviceAccount = JSON.parse(decodedKey);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -36,7 +37,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
         const db = client.db('life-drop')
         const usersCollection = db.collection('users');
@@ -367,9 +368,30 @@ async function run() {
         });
 
         // POST /donations - add a new donation request
-        app.post('/donations', async (req, res) => {
+        app.post('/donations', verifyFBToken, async (req, res) => {
             try {
                 const donationData = req.body;
+
+                const {
+                    requesterEmail,
+                    recipientName,
+                    donationDate,
+                } = donationData;
+
+                // 🔒 Duplicate protection
+                const exists = await donationsCollection.findOne({
+                    requesterEmail,
+                    recipientName,
+                    donationDate,
+                    donationStatus: "pending",
+                });
+
+                if (exists) {
+                    return res.status(409).json({
+                        success: false,
+                        message: "You already have a similar pending donation request.",
+                    });
+                }
 
                 const result = await donationsCollection.insertOne(donationData);
 
@@ -480,6 +502,43 @@ async function run() {
             }
         });
 
+        // DELETE /donations/:id - delete a donation by ID
+        app.delete('/donations/:id', async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid donation ID"
+                    });
+                }
+
+                const result = await donationsCollection.deleteOne({
+                    _id: new ObjectId(id)
+                });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Donation not found"
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "Donation deleted successfully"
+                });
+
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+        });
+
+
         // GET /admin/dashboard-stats
         app.get("/admin/dashboard-stats", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
             try {
@@ -552,7 +611,7 @@ async function run() {
 
                 res.status(200).json({ clientSecret: paymentIntent.client_secret });
             } catch (error) {
-                console.error("Stripe error:", error);
+                // console.error("Stripe error:", error);
                 res.status(500).json({ message: "Failed to create payment intent", error: error.message });
             }
         });
@@ -618,6 +677,26 @@ async function run() {
                     totalPages: Math.ceil(totalCount / pageSize),
                     currentPage: pageNumber,
                 });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
+        app.get("/blogs/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid blog ID" });
+                }
+
+                const blog = await blogsCollection.findOne({ _id: new ObjectId(id) });
+
+                if (!blog) {
+                    return res.status(404).json({ success: false, message: "Blog not found" });
+                }
+
+                res.status(200).json({ success: true, blog });
             } catch (err) {
                 res.status(500).json({ success: false, message: err.message });
             }
@@ -699,8 +778,8 @@ async function run() {
         });
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
