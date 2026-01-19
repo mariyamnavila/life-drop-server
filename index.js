@@ -614,6 +614,27 @@ async function run() {
             res.status(201).json({ success: true, insertedId: result.insertedId });
         });
 
+
+        app.delete("/blogs/:id", verifyFBToken, verifyAdmin, async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid blog ID" });
+                }
+
+                const result = await blogsCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Blog not found" });
+                }
+
+                res.status(200).json({ success: true, message: "Blog deleted successfully" });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
