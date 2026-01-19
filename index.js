@@ -615,6 +615,38 @@ async function run() {
         });
 
 
+        // PATCH /blogs/:id/status - change blog status (draft <-> published)
+        app.patch("/blogs/:id/status", verifyFBToken, verifyAdmin, async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { status } = req.body;
+
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ success: false, message: "Invalid blog ID" });
+                }
+
+                if (!["draft", "published"].includes(status)) {
+                    return res.status(400).json({ success: false, message: "Invalid status value" });
+                }
+
+                const result = await blogsCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status, updated_at: new Date() } }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ success: false, message: "Blog not found" });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: `Blog status updated to "${status}" successfully`,
+                });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
         app.delete("/blogs/:id", verifyFBToken, verifyAdmin, async (req, res) => {
             try {
                 const { id } = req.params;
