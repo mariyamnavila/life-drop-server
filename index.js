@@ -558,6 +558,40 @@ async function run() {
         });
 
         // Blogs APIs
+
+        app.get("/blogs", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
+            try {
+                const { status = "all", page = 0, limit = 10 } = req.query;
+
+                const query = {};
+                if (status !== "all") {
+                    query.status = status;
+                }
+
+                const pageNumber = parseInt(page);
+                const pageSize = parseInt(limit);
+                const skip = pageNumber * pageSize;
+
+                const totalCount = await blogsCollection.countDocuments(query);
+
+                const blogs = await blogsCollection
+                    .find(query)
+                    .sort({ created_at: -1 })
+                    .skip(skip)
+                    .limit(pageSize)
+                    .toArray();
+
+                res.json({
+                    blogs,
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / pageSize),
+                    currentPage: pageNumber,
+                });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
         app.post("/blogs", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
             // req.user is available here
             const { title, thumbnail, content } = req.body;
