@@ -592,6 +592,37 @@ async function run() {
             }
         });
 
+        app.get("/blogs/published", async (req, res) => {
+            try {
+                const { page = 0, limit = 10 } = req.query;
+
+                const pageNumber = parseInt(page);
+                const pageSize = parseInt(limit);
+                const skip = pageNumber * pageSize;
+
+                // Filter only published blogs
+                const query = { status: "published" };
+
+                const totalCount = await blogsCollection.countDocuments(query);
+
+                const blogs = await blogsCollection
+                    .find(query)
+                    .sort({ created_at: -1 }) // newest first
+                    .skip(skip)
+                    .limit(pageSize)
+                    .toArray();
+
+                res.status(200).json({
+                    blogs,
+                    totalCount,
+                    totalPages: Math.ceil(totalCount / pageSize),
+                    currentPage: pageNumber,
+                });
+            } catch (err) {
+                res.status(500).json({ success: false, message: err.message });
+            }
+        });
+
         app.post("/blogs", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
             // req.user is available here
             const { title, thumbnail, content } = req.body;
