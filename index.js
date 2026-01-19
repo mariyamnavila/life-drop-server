@@ -42,6 +42,7 @@ async function run() {
         const usersCollection = db.collection('users');
         const donationsCollection = db.collection('donations');
         const fundingsCollection = db.collection('funds');
+        const blogsCollection = db.collection('blogs')
 
         // custom middleware
         const verifyFBToken = async (req, res, next) => {
@@ -88,8 +89,6 @@ async function run() {
                 const email = req.decoded.email; // from verifyFBToken middleware
 
                 const user = await usersCollection.findOne({ email: email });
-
-                console.log(user.role);
 
                 if (!user || (user.role !== 'admin' && user.role !== 'volunteer')) {
                     return res.status(403).json({ message: 'Access denied. Admin and Volunteers only.' });
@@ -292,7 +291,7 @@ async function run() {
         // GET /donations/pending - get only pending donation requests (limited fields)
         app.get('/donations/pending', async (req, res) => {
             try {
-                const { page = 0, limit = 9  } = req.query;
+                const { page = 0, limit = 9 } = req.query;
 
                 const pageNumber = parseInt(page);
                 const pageSize = parseInt(limit);
@@ -558,6 +557,28 @@ async function run() {
             }
         });
 
+        // Blogs APIs
+        app.post("/blogs", verifyFBToken, verifyAdminOrVolunteer, async (req, res) => {
+            // req.user is available here
+            const { title, thumbnail, content } = req.body;
+
+            const blog = {
+                title,
+                thumbnail,
+                content,
+                status: "draft",
+                author: {
+                    email: req.user.email,
+                    uid: req.user.uid,
+                    name: req.user.name || "Unknown",
+                },
+                created_at: new Date(),
+                updated_at: new Date(),
+            };
+
+            const result = await blogsCollection.insertOne(blog);
+            res.status(201).json({ success: true, insertedId: result.insertedId });
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
