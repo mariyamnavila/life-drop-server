@@ -47,7 +47,7 @@ The backend ensures data integrity, authentication, and authorization for admins
 
 3. Create a ``.env`` file with MongoDB URI, JWT secret, and Firebase Admin credentials.
 
-4. Start the server using npm run dev or npm start.
+4. Start the server using ``npm run dev`` or ``npm start``.
 
 ## Repository
 
