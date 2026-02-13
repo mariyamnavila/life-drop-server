@@ -137,6 +137,33 @@ async function run() {
             }
         });
 
+        // GET /users/search?blood_group=A+&district=Dhaka&upazila=Savar
+        app.get("/users/search", async (req, res) => {
+            try {
+                const { blood_group, district, upazila } = req.query;
+
+                // If no search params, return empty array
+                if (!blood_group && !district && !upazila) {
+                    return res.status(200).json([]);
+                }
+
+                // Build query for active donors
+                const query = { role: "donor", status: "active" };
+
+                if (blood_group && blood_group !== "all") query.blood_group = blood_group;
+                if (district && district !== "all") query.district = district;
+                if (upazila && upazila !== "all") query.upazila = upazila;
+
+                const donors = await usersCollection
+                    .find(query)
+                    .sort({ created_at: -1 })
+                    .toArray();
+
+                res.status(200).json(donors);
+            } catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
 
         // GET /users/:email - fetch single user by email
         app.get('/users/:email', verifyFBToken, async (req, res) => {
@@ -290,21 +317,39 @@ async function run() {
         });
 
         // GET /donations/pending - get only pending donation requests (limited fields)
+        // Combined GET /donations/pending with pagination and filters
         app.get('/donations/pending', async (req, res) => {
             try {
-                const { page = 0, limit = 9 } = req.query;
+                const {
+                    page = 0,
+                    limit = 9,
+                    blood_group,
+                    district,
+                    upazila
+                } = req.query;
 
                 const pageNumber = parseInt(page);
                 const pageSize = parseInt(limit);
                 const skip = pageNumber * pageSize;
 
-                // Fixed query: only pending donations
+                // Base query: only pending donations
                 const query = { donationStatus: "pending" };
+
+                // Add filters if provided
+                if (blood_group && blood_group !== "all") {
+                    query.bloodGroup = blood_group;
+                }
+                if (district && district !== "all") {
+                    query.recipientDistrict = district;
+                }
+                if (upazila && upazila !== "all") {
+                    query.recipientUpazila = upazila;
+                }
 
                 // Total count for pagination
                 const totalCount = await donationsCollection.countDocuments(query);
 
-                // Paginated data
+                // Paginated data with filters
                 const donations = await donationsCollection
                     .find(query)
                     .sort({ createdAt: -1 })
@@ -327,23 +372,23 @@ async function run() {
             }
         });
 
-        // GET /donations/search?blood_group=A+&district=Dhaka&upazila=Savar
-        app.get("/donations/search", async (req, res) => {
-            try {
-                const { blood_group, district, upazila } = req.query;
-                const query = { donationStatus: "pending" }; // only pending donations are searchable
+        // // GET /donations/search?blood_group=A+&district=Dhaka&upazila=Savar
+        // app.get("/donations/search", async (req, res) => {
+        //     try {
+        //         const { blood_group, district, upazila } = req.query;
+        //         const query = { donationStatus: "pending" }; // only pending donations are searchable
 
-                if (blood_group) query.bloodGroup = blood_group;
-                if (district) query.recipientDistrict = district;
-                if (upazila) query.recipientUpazila = upazila;
+        //         if (blood_group) query.bloodGroup = blood_group;
+        //         if (district) query.recipientDistrict = district;
+        //         if (upazila) query.recipientUpazila = upazila;
 
-                const donations = await donationsCollection.find(query).sort({ createdAt: -1 }).toArray();
+        //         const donations = await donationsCollection.find(query).sort({ createdAt: -1 }).toArray();
 
-                res.status(200).json(donations);
-            } catch (error) {
-                res.status(500).json({ success: false, message: error.message });
-            }
-        });
+        //         res.status(200).json(donations);
+        //     } catch (error) {
+        //         res.status(500).json({ success: false, message: error.message });
+        //     }
+        // });
 
         // GET /donations/:donationId - fetch single donation by ID
         app.get('/donations/:donationId', verifyFBToken, async (req, res) => {
