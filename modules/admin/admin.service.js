@@ -14,7 +14,21 @@ const getDashboardStatsFromDB = async () => {
 
     const totalDonations = await donationsCollection.countDocuments();
 
-    return { totalUsers, totalFunds, totalDonations };
+    const donationsByStatus = await donationsCollection.aggregate([
+        { $group: { _id: "$donationStatus", count: { $sum: 1 } } }
+    ]).toArray();
+
+    const donationsByBloodGroup = await donationsCollection.aggregate([
+        { $group: { _id: "$bloodGroup", count: { $sum: 1 } } }
+    ]).toArray();
+
+    return { 
+        totalUsers, 
+        totalFunds, 
+        totalDonations,
+        donationsByStatus,
+        donationsByBloodGroup
+    };
 };
 
 module.exports = {

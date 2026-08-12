@@ -21,8 +21,8 @@ const getAllDonations = catchAsync(async (req, res) => {
 });
 
 const getPendingDonations = catchAsync(async (req, res) => {
-    const { page = 0, limit = 9, blood_group, district, upazila } = req.query;
-    const result = await donationService.getPendingDonationsFromDB(page, limit, blood_group, district, upazila);
+    const { page = 0, limit = 9, blood_group, district, upazila, search, sort } = req.query;
+    const result = await donationService.getPendingDonationsFromDB(page, limit, blood_group, district, upazila, search, sort);
     sendResponse(res, {
         success: true,
         statusCode: 200,

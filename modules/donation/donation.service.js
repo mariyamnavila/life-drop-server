@@ -27,7 +27,7 @@ const getDonationsFromDB = async (email, status, page, limit) => {
     };
 };
 
-const getPendingDonationsFromDB = async (page, limit, bloodGroup, district, upazila) => {
+const getPendingDonationsFromDB = async (page, limit, bloodGroup, district, upazila, search, sort) => {
     const donationsCollection = getCollection('donations');
     const pageNumber = parseInt(page);
     const pageSize = parseInt(limit);
@@ -38,10 +38,29 @@ const getPendingDonationsFromDB = async (page, limit, bloodGroup, district, upaz
     if (district && district !== "all") query.recipientDistrict = district;
     if (upazila && upazila !== "all") query.recipientUpazila = upazila;
 
+    if (search) {
+        query.$or = [
+            { recipientName: { $regex: search, $options: "i" } },
+            { hospitalName: { $regex: search, $options: "i" } },
+            { fullAddress: { $regex: search, $options: "i" } },
+        ];
+    }
+
+    let sortObj = { createdAt: -1 };
+    if (sort === "date-asc") {
+        sortObj = { donationDate: 1 };
+    } else if (sort === "date-desc") {
+        sortObj = { donationDate: -1 };
+    } else if (sort === "urgency") {
+        sortObj = { donationDate: 1, donationTime: 1 };
+    } else if (sort === "newest") {
+        sortObj = { createdAt: -1 };
+    }
+
     const totalCount = await donationsCollection.countDocuments(query);
     const donations = await donationsCollection
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort(sortObj)
         .skip(skip)
         .limit(pageSize)
         .toArray();
