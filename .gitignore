@@ -3,3 +3,5 @@ node_modules
 .vscode
 firebase-admin-key.json
 .vercel
+Assignment_backend.md
+todo_backend.md
